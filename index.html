@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;user-select:none}
-html,body{height:100%;overflow:hidden;background:#070B1A;touch-action:none}
+html{background:#070B1A}html,body{height:100%;overflow:hidden;touch-action:none}
 body{font-family:'Vazirmatn',system-ui,sans-serif;color:#EEF1FB}
 canvas{position:fixed;left:0;top:0;width:100%;height:100%;display:block}
 .hud{position:fixed;top:calc(env(safe-area-inset-top) + 14px);left:0;right:0;display:flex;justify-content:space-between;padding:0 20px;pointer-events:none;font-weight:800;font-size:18px;opacity:.9}
@@ -63,19 +63,23 @@ canvas{position:fixed;left:0;top:0;width:100%;height:100%;display:block}
 <script>
 const cv = document.getElementById("c"), ctx = cv.getContext("2d");
 const LW = 400;
-let W, H, s, LH, dpr;
+let W, H, s, LH, dpr, ready = false;
 /* پڕکردنەوەی تەواوی شاشە، بەبێ بۆشایی */
 const probe = document.createElement("div");
 probe.style.cssText = "position:fixed;left:0;top:0;right:0;bottom:0;visibility:hidden;pointer-events:none";
 document.body.appendChild(probe);
+const EX = 220;
+let DH;
 function resize(){
   dpr = Math.min(devicePixelRatio || 1, 2);
-  const r = probe.getBoundingClientRect();
-  W = Math.round(r.width) || innerWidth;
-  H = Math.round(r.height) || innerHeight;
+  const r = probe.getBoundingClientRect(), vv = window.visualViewport;
+  const w = Math.round(r.width) || innerWidth;
+  const h = Math.max(Math.round(r.height), innerHeight, vv ? Math.round(vv.height) : 0);
+  W = w; H = h + EX;
+  cv.style.cssText = "position:fixed;left:0;top:0;display:block;width:" + W + "px;height:" + H + "px";
   cv.width = W * dpr; cv.height = H * dpr;
-  s = W / LW; LH = H / s;
-  if (typeof running !== "undefined" && !running && typeof extend === "function"){ camY = -LH * .65; extend(); }
+  s = W / LW; LH = h / s; DH = H / s;
+  if (ready && !running){ camY = -LH * .65; extend(); }
 }
 addEventListener("resize", resize); addEventListener("orientationchange", resize);
 if (window.visualViewport) visualViewport.addEventListener("resize", resize);
@@ -329,13 +333,15 @@ function draw(){
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, `rgb(${cA.map(Math.round)})`); g.addColorStop(1, `rgb(${cB.map(Math.round)})`);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const bgc = `linear-gradient(rgb(${cA.map(Math.round)}),rgb(${cB.map(Math.round)}))`;
+  if (bgc !== draw.last){ draw.last = bgc; document.documentElement.style.background = bgc; document.body.style.background = "transparent"; }
 
   const sx = shake ? rnd(-shake, shake) : 0, sy = shake ? rnd(-shake, shake) : 0;
   ctx.setTransform(dpr * s, 0, 0, dpr * s, sx * dpr, sy * dpr);
 
   ctx.fillStyle = "#fff";
   for (const b of bg){
-    const y = ((b.y - camY * b.z * .35) % (LH + 40) + LH + 40) % (LH + 40) - 20;
+    const y = ((b.y - camY * b.z * .35) % (DH + 40) + DH + 40) % (DH + 40) - 20;
     ctx.globalAlpha = .25 + b.z * .5; ctx.beginPath(); ctx.arc(b.x, y, b.r, 0, 6.283); ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -412,7 +418,7 @@ addEventListener("pointerdown", () => { if (running) release(); });
 addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); if (running) release(); } });
 
 drawPick(); drawSnd();
-reset(); requestAnimationFrame(t => { last = t; frame(t); });
+reset(); ready = true; requestAnimationFrame(t => { last = t; frame(t); });
 </script>
 </body>
 </html>
