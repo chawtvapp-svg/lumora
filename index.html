@@ -74,7 +74,9 @@ function resize(){
   dpr = Math.min(devicePixelRatio || 1, 2);
   const r = probe.getBoundingClientRect(), vv = window.visualViewport;
   const w = Math.round(r.width) || innerWidth;
-  const h = Math.max(Math.round(r.height), innerHeight, vv ? Math.round(vv.height) : 0);
+  let h = Math.max(Math.round(r.height), innerHeight, vv ? Math.round(vv.height) : 0);
+  if (navigator.standalone && innerHeight > innerWidth) h = Math.max(h, screen.height);
+  document.documentElement.style.height = document.body.style.height = (h + EX) + "px";
   W = w; H = h + EX;
   cv.style.cssText = "position:fixed;left:0;top:0;display:block;width:" + W + "px;height:" + H + "px";
   cv.width = W * dpr; cv.height = H * dpr;
@@ -199,15 +201,25 @@ function release(){
 
 /* ---------- audio (تەنها دەنگی بەرکەوتن) ---------- */
 let ac = null, mg = null;
+let sil = null;
+function silentWav(){
+  const n = 4410, b = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); b.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+  b.setUint32(24, 44100, true); b.setUint32(28, 88200, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, "data"); b.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([b], { type: "audio/wav" }));
+}
 function unlock(){
   try {
+    if (navigator.audioSession) navigator.audioSession.type = "playback";
+    if (!sil){ sil = new Audio(silentWav()); sil.loop = true; sil.volume = .01; sil.play().catch(() => {}); }
     if (!ac){ ac = new (window.AudioContext || window.webkitAudioContext)(); mg = ac.createGain(); mg.gain.value = muted ? 0 : 1; mg.connect(ac.destination); }
-    if (ac.state === "suspended") ac.resume();
+    if (ac.state !== "running") ac.resume();
   } catch {}
 }
 ["touchend", "click", "pointerdown"].forEach(e => addEventListener(e, unlock, { passive: true }));
 function tone(f, type, v, att, dur, f2){
-  if (!ac || ac.state !== "running" || muted) return;
+  if (!ac || muted) return;
+  if (ac.state !== "running") ac.resume();
   const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t);
   if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
@@ -219,7 +231,7 @@ function tone(f, type, v, att, dur, f2){
 const PENT = [0, 2, 4, 7, 9];
 function chime(){
   const n = score, f = 392 * Math.pow(2, (PENT[n % 5] + 12 * Math.floor((n % 15) / 5)) / 12);
-  tone(f, "sine", .16, .015, .5); tone(f * 2, "triangle", .05, .015, .5);
+  tone(f, "sine", .3, .01, .5); tone(f * 2, "triangle", .1, .01, .5); tone(130, "sine", .35, .005, .16, 55);
 }
 
 /* ---------- logic ---------- */
@@ -230,7 +242,7 @@ function hit(reason){
     P.on = P.last; P.R = P.last.r + 26; P.a = -1.57; P.skipT = 0;
     toast("قەڵغان ڕزگاری کردیت!"); return;
   }
-  tone(180, "sawtooth", .12, .01, .6, 60);
+  tone(180, "sawtooth", .2, .01, .6, 60);
   end(reason === "well" ? "کونی ڕەش قووتی دایت" : "تاریکی قووتی دایت");
 }
 function update(dt0){
@@ -281,14 +293,14 @@ function update(dt0){
     if (st.got) continue; pull(st, 260);
     if (Math.hypot(P.x - st.x, P.y - st.y) < 18){
       st.got = true; score++; $("sc").textContent = score; burst(st.x, st.y, 55, 14);
-      tone(1318, "sine", .09, .01, .3);
+      tone(1318, "sine", .2, .01, .3);
     }
   }
   for (const it of items){
     if (it.got) continue; pull(it, 260);
     if (Math.hypot(P.x - it.x, P.y - it.y) < 20){
       it.got = true; burst(it.x, it.y, 190, 18);
-      tone(1046, "sine", .1, .01, .3); tone(1568, "sine", .08, .08, .4);
+      tone(1046, "sine", .2, .01, .3); tone(1568, "sine", .16, .08, .4);
       if (it.t === "S"){ P.shield = true; toast("🛡 قەڵغان"); }
       else if (it.t === "M"){ P.mag = 8; toast("🧲 موگناتیس"); }
       else { P.slow = 6; toast("⏳ کاتی هێواش"); }
@@ -330,11 +342,11 @@ function draw(){
   const W2 = WORLDS[curW];
   for (let i = 0; i < 3; i++){ cA[i] += (W2.a[i] - cA[i]) * .04; cB[i] += (W2.b[i] - cB[i]) * .04; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const g = ctx.createLinearGradient(0, 0, 0, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H - EX);
   g.addColorStop(0, `rgb(${cA.map(Math.round)})`); g.addColorStop(1, `rgb(${cB.map(Math.round)})`);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  const bgc = `linear-gradient(rgb(${cA.map(Math.round)}),rgb(${cB.map(Math.round)}))`;
-  if (bgc !== draw.last){ draw.last = bgc; document.documentElement.style.background = bgc; document.body.style.background = "transparent"; }
+  const bgc = `rgb(${cB.map(Math.round)})`;
+  if (bgc !== draw.last){ draw.last = bgc; document.documentElement.style.backgroundColor = bgc; document.body.style.backgroundColor = bgc; }
 
   const sx = shake ? rnd(-shake, shake) : 0, sy = shake ? rnd(-shake, shake) : 0;
   ctx.setTransform(dpr * s, 0, 0, dpr * s, sx * dpr, sy * dpr);
