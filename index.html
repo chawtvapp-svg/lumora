@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html lang="ckb" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -254,6 +254,7 @@ reset(); requestAnimationFrame(t => { last = t; frame(t); });
 </script>
 <script>
 (function(){
+  const EX=130;
   const probe=document.createElement("div");
   probe.style.cssText="position:fixed;left:0;top:0;right:0;bottom:0;visibility:hidden;pointer-events:none";
   document.body.appendChild(probe);
@@ -262,9 +263,9 @@ reset(); requestAnimationFrame(t => { last = t; frame(t); });
     const w=Math.round(r.width)||innerWidth;
     let h=Math.max(Math.round(r.height),innerHeight);
     if(navigator.standalone&&innerHeight>innerWidth) h=Math.max(h,screen.height);
-    cv.style.cssText="position:fixed;left:0;top:0;width:"+w+"px;height:"+h+"px;display:block";
+    cv.style.cssText="position:fixed;left:0;top:0;width:"+w+"px;height:"+(h+EX)+"px;display:block";
     dpr=Math.min(devicePixelRatio||1,2);
-    W=w;H=h;cv.width=W*dpr;cv.height=H*dpr;s=W/LW;LH=H/s;
+    W=w;H=h+EX;cv.width=W*dpr;cv.height=H*dpr;s=W/LW;LH=H/s;
     if(!running){camY=-LH*.65;extend();}
   }
   addEventListener("resize",fit);
