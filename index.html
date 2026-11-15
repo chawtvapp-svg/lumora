@@ -221,5 +221,57 @@ addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault();
 
 reset(); requestAnimationFrame(t => { last = t; frame(t); });
 </script>
+<script>
+(function(){
+  let ac=null;
+  function unlock(){
+    try{
+      if(!ac){ac=new (window.AudioContext||window.webkitAudioContext)();}
+      if(ac.state==="suspended") ac.resume();
+    }catch(e){}
+  }
+  ["touchend","click","pointerdown"].forEach(e=>addEventListener(e,unlock,{passive:true}));
+  const sc=[0,2,4,7,9];
+  function chime(){
+    if(!ac||ac.state!=="running") return;
+    const n=(typeof score==="number"?score:0);
+    const semis=sc[n%5]+12*Math.floor((n%15)/5);
+    const f=392*Math.pow(2,semis/12);
+    const t=ac.currentTime;
+    [[f,"sine",.16],[f*2,"triangle",.05]].forEach(([fr,ty,v])=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type=ty;o.frequency.value=fr;
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(v,t+.015);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+.7);
+      o.connect(g);g.connect(ac.destination);
+      o.start(t);o.stop(t+.75);
+    });
+  }
+  const ob=burst;
+  burst=function(x,y,h,n){ if(n===16) chime(); ob(x,y,h,n); };
+})();
+</script>
+<script>
+(function(){
+  const probe=document.createElement("div");
+  probe.style.cssText="position:fixed;left:0;top:0;right:0;bottom:0;visibility:hidden;pointer-events:none";
+  document.body.appendChild(probe);
+  function fit(){
+    const r=probe.getBoundingClientRect();
+    const w=Math.round(r.width)||innerWidth;
+    let h=Math.max(Math.round(r.height),innerHeight);
+    if(navigator.standalone&&innerHeight>innerWidth) h=Math.max(h,screen.height);
+    cv.style.cssText="position:fixed;left:0;top:0;width:"+w+"px;height:"+h+"px;display:block";
+    dpr=Math.min(devicePixelRatio||1,2);
+    W=w;H=h;cv.width=W*dpr;cv.height=H*dpr;s=W/LW;LH=H/s;
+    if(!running){camY=-LH*.65;extend();}
+  }
+  addEventListener("resize",fit);
+  addEventListener("orientationchange",fit);
+  if(window.visualViewport) visualViewport.addEventListener("resize",fit);
+  fit();setTimeout(fit,150);setTimeout(fit,600);
+})();
+</script>
 </body>
 </html>
