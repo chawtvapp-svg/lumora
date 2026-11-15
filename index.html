@@ -1,4 +1,4 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ckb" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -17,10 +17,17 @@ body{font-family:'Vazirmatn',system-ui,sans-serif;color:#EEF1FB}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .hud{position:fixed;top:calc(env(safe-area-inset-top) + 14px);left:0;right:0;display:flex;justify-content:space-between;padding:0 20px;pointer-events:none;font-weight:800;font-size:18px;opacity:.9}
 .hud b{color:#7CF3D0}
+#pw{font-size:16px;direction:ltr}
+#tx{position:fixed;top:28%;left:0;right:0;text-align:center;font-weight:800;font-size:26px;color:#7CF3D0;opacity:0;transition:opacity .3s;pointer-events:none;text-shadow:0 0 16px rgba(124,243,208,.6)}
 #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;background:radial-gradient(circle,rgba(7,11,26,.55),rgba(7,11,26,.9))}
 #ov h1{font-size:38px;font-weight:800;letter-spacing:0}
 #ov p{color:#9AA6C8;line-height:1.9;max-width:300px}
 #ov button{margin-top:10px;background:linear-gradient(135deg,#7B61FF,#31E0A8);color:#07101F;border:0;border-radius:99px;padding:14px 44px;font:inherit;font-weight:800;font-size:18px}
+#ov button.mini{background:rgba(255,255,255,.1);color:#cfd6f0;padding:8px 20px;font-size:14px;margin-top:0}
+#sk{display:flex;gap:12px;margin-top:4px}
+.sw{width:38px;height:38px;border-radius:50%;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:14px}
+.sw.on{border-color:#fff;box-shadow:0 0 14px rgba(255,255,255,.4)}
+.sw.lk{opacity:.35}
 </style>
 <script>
 (function(){
@@ -44,8 +51,9 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 </head>
 <body>
 <canvas id="c"></canvas>
-<div class="hud"><span>خاڵ <b id="sc">0</b></span><span>باشترین <b id="hs">0</b></span></div>
-<div id="ov"><h1 id="t" style="direction:ltr">Lumora</h1><p id="p">دەوری ئەستێرەیەک دەگەڕێیت. لە کاتی گونجاودا پەنجە بنێ تا بازبدەیت بۆ ئەوی تر. نەکەوە ناو تاریکی.</p><button id="go">دەستپێبکە</button></div>
+<div class="hud"><span>خاڵ <b id="sc">0</b></span><span id="pw"></span><span>باشترین <b id="hs">0</b></span></div>
+<div id="tx"></div>
+<div id="ov"><h1 id="t" style="direction:ltr">Lumora</h1><p id="p">دەوری ئەستێرەیەک دەگەڕێیت. لە کاتی گونجاودا پەنجە بنێ تا بازبدەیت بۆ ئەوی تر. نەکەوە ناو تاریکی و دوور بکەوە لە کونی ڕەش.</p><button id="go">دەستپێبکە</button><div id="sk"></div><button id="snd" class="mini"></button></div>
 
 <script>
 const cv = document.getElementById("c"), ctx = cv.getContext("2d");
@@ -60,32 +68,84 @@ function resize(){
 addEventListener("resize", resize); resize();
 
 const rnd = (a, b) => a + Math.random() * (b - a);
-let best = 0;
-try { best = +localStorage.getItem("orbitBest") || 0; } catch {}
-document.getElementById("hs").textContent = best;
+const $ = id => document.getElementById(id);
+let best = 0, skin = 0, muted = false;
+try { best = +localStorage.getItem("orbitBest") || 0; skin = +localStorage.getItem("lumSkin") || 0; muted = localStorage.getItem("lumMute") === "1"; } catch {}
+$("hs").textContent = best;
 
-let P, planets, stars, parts, trail, bg, camY, score, last, running = false, over = false, shake = 0;
+/* ---------- worlds ---------- */
+const WORLDS = [
+  { n: "نەبیۆلا", a: [11,16,48], b: [7,11,26], h: [200,290], root: 196 },
+  { n: "ئۆرۆرا", a: [8,38,42], b: [5,16,24], h: [120,190], root: 174.6 },
+  { n: "ئاگر", a: [48,16,28], b: [24,8,16], h: [0,50], root: 164.8 },
+  { n: "زەریا", a: [6,24,60], b: [4,10,32], h: [190,240], root: 220 }
+];
+const wi = () => Math.floor(score / 12) % WORLDS.length;
+let cA = WORLDS[0].a.slice(), cB = WORLDS[0].b.slice(), curW = 0;
 
+/* ---------- skins ---------- */
+const SK = [165, 320, 45, 210, -1], SKT = [0, 10, 25, 50, 100];
+const ph = () => skin === 4 ? (performance.now() / 12) % 360 : SK[skin];
+function drawSkins(){
+  const box = $("sk"); box.innerHTML = "";
+  SK.forEach((h, i) => {
+    const d = document.createElement("div"), ok = best >= SKT[i];
+    d.className = "sw" + (i === skin ? " on" : "") + (ok ? "" : " lk");
+    d.style.background = h < 0 ? "conic-gradient(#f66,#fd6,#6f9,#6bf,#c6f,#f66)" : `hsl(${h},90%,62%)`;
+    d.textContent = ok ? "" : "🔒";
+    d.onclick = e => { e.stopPropagation(); if (!ok) return; skin = i; try { localStorage.setItem("lumSkin", i); } catch {} drawSkins(); };
+    box.appendChild(d);
+  });
+}
+function drawSnd(){ $("snd").textContent = muted ? "🔇 دەنگ داخراوە" : "🔊 دەنگ کراوەیە"; }
+$("snd").onclick = e => {
+  e.stopPropagation(); muted = !muted; if (mg) mg.gain.value = muted ? 0 : 1;
+  try { localStorage.setItem("lumMute", muted ? "1" : "0"); } catch {} drawSnd();
+};
+drawSkins(); drawSnd();
+
+/* ---------- state ---------- */
+let P, planets, stars, items, wells, parts, trail, bg, camY, score, last, running = false, over = false, shake = 0, nm = 0, ts = 1, tT;
+
+function toast(t){
+  const e = $("tx"); e.textContent = t; e.style.opacity = 1;
+  clearTimeout(tT); tT = setTimeout(() => e.style.opacity = 0, 1100);
+}
 function newPlanet(y, x){
-  return { x: x ?? rnd(80, LW - 80), y, r: rnd(13, 24), hue: rnd(170, 290), cap: 0, pulse: 0 };
+  const h = WORLDS[wi()].h;
+  return { x: x ?? rnd(80, LW - 80), y, r: rnd(13, 24), hue: rnd(h[0], h[1]), cap: 0, pulse: 0 };
 }
 function reset(){
+  score = 0; curW = 0; cA = WORLDS[0].a.slice(); cB = WORLDS[0].b.slice(); nm = 0; ts = 1;
   planets = [newPlanet(0, LW/2)];
   planets[0].r = 20;
-  P = { x: LW/2 + 46, y: 0, vx: 0, vy: 0, on: planets[0], a: 0, dir: 1, R: 46, free: 0, skip: null, skipT: 0 };
-  stars = []; parts = []; trail = []; score = 0; camY = -LH * 0.65; shake = 0;
+  P = { x: LW/2 + 46, y: 0, vx: 0, vy: 0, on: planets[0], a: 0, dir: 1, R: 46, skip: null, skipT: 0,
+        shield: false, mag: 0, slow: 0, last: planets[0], md: new Map(), nmd: new Set() };
+  stars = []; items = []; wells = []; parts = []; trail = []; camY = -LH * 0.65; shake = 0;
   bg = Array.from({length: 90}, () => ({ x: rnd(0, LW), y: rnd(0, 800), z: rnd(.2, .9), r: rnd(.5, 1.6) }));
-  document.getElementById("sc").textContent = 0;
+  $("sc").textContent = 0; $("pw").textContent = "";
   extend();
 }
 function extend(){
   let L = planets[planets.length - 1];
   while (L.y > camY - LH * 1.3){
     const n = newPlanet(L.y - rnd(120, 175));
-    stars.push({ x: (L.x + n.x)/2 + rnd(-20, 20), y: (L.y + n.y)/2, got: false });
+    const mx = (L.x + n.x) / 2, my = (L.y + n.y) / 2;
+    stars.push({ x: mx + rnd(-20, 20), y: my, got: false });
+    if (score >= 3 && Math.random() < .22){
+      const k = rnd(.25, .4);
+      items.push({ t: "SMT"[Math.floor(rnd(0, 3))], x: L.x + (n.x - L.x) * k + rnd(-18, 18), y: L.y + (n.y - L.y) * k, got: false });
+    }
+    if (score >= 5 && Math.random() < .28){
+      const sx = Math.random() < .5 ? -1 : 1;
+      wells.push({ x: Math.max(30, Math.min(LW - 30, mx + sx * 88)), y: my + rnd(-15, 15), dead: false });
+    }
     planets.push(n); L = n;
   }
   while (planets.length > 14 && planets[0].y > camY + LH + 300) planets.shift();
+  while (stars.length > 40 && stars[0].y > camY + LH + 200) stars.shift();
+  while (items.length > 12 && items[0].y > camY + LH + 200) items.shift();
+  while (wells.length > 12 && wells[0].y > camY + LH + 200) wells.shift();
 }
 function burst(x, y, hue, n){
   for (let i = 0; i < n; i++){
@@ -98,11 +158,65 @@ function release(){
   const rx = P.x - P.on.x, ry = P.y - P.on.y, d = Math.hypot(rx, ry);
   const tx = -ry / d * P.dir, ty = rx / d * P.dir;
   P.vx = tx * 330; P.vy = ty * 330;
-  P.skip = P.on; P.skipT = .4; P.on = null;
-  burst(P.x, P.y, 170, 6);
+  P.last = P.on; P.skip = P.on; P.skipT = .4; P.on = null;
+  P.md = new Map(); P.nmd = new Set();
+  burst(P.x, P.y, ph(), 6);
 }
 
-function update(dt){
+/* ---------- audio ---------- */
+let ac = null, mg = null, musicOn = false;
+function unlock(){
+  try {
+    if (!ac){ ac = new (window.AudioContext || window.webkitAudioContext)(); mg = ac.createGain(); mg.gain.value = muted ? 0 : 1; mg.connect(ac.destination); startMusic(); }
+    if (ac.state === "suspended") ac.resume();
+  } catch {}
+}
+["touchend", "click", "pointerdown"].forEach(e => addEventListener(e, unlock, { passive: true }));
+function tone(f, type, v, att, dur, f2){
+  if (!ac || ac.state !== "running" || muted) return;
+  const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.exponentialRampToValueAtTime(v, t + att);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(mg); o.start(t); o.stop(t + dur + .05);
+}
+const PENT = [0, 2, 4, 7, 9];
+function chime(){
+  const n = score, f = 392 * Math.pow(2, (PENT[n % 5] + 12 * Math.floor((n % 15) / 5)) / 12);
+  tone(f, "sine", .16, .015, .7); tone(f * 2, "triangle", .05, .015, .7);
+}
+function startMusic(){
+  if (musicOn) return; musicOn = true;
+  let step = 0;
+  setInterval(() => {
+    if (!ac || ac.state !== "running" || muted) return;
+    const w = WORLDS[curW], ch = [0, 4, 7, 11], base = w.root * (step % 8 < 4 ? 1 : 1.122);
+    ch.slice(0, 3).forEach((c, i) => tone(base * Math.pow(2, c / 12), "sine", .035, .9, 3.4));
+    if (Math.random() < .7) tone(base * 4 * Math.pow(2, PENT[Math.floor(rnd(0, 5))] / 12), "sine", .03, .02, 1.4);
+    step++;
+  }, 2600);
+}
+
+/* ---------- logic ---------- */
+function hit(reason){
+  if (P.shield){
+    P.shield = false; burst(P.x, P.y, 200, 24); shake = 6;
+    if (reason === "well"){ P.vx *= -1; P.vy *= -1; return; }
+    P.on = P.last; P.R = P.last.r + 26; P.a = -1.57; P.skipT = 0;
+    toast("قەڵغان ڕزگاری کردیت!"); return;
+  }
+  tone(180, "sawtooth", .12, .01, .6, 60);
+  end(reason === "well" ? "کونی ڕەش قووتی دایت" : "تاریکی قووتی دایت");
+}
+function update(dt0){
+  const tgt = Math.min(nm > 0 ? .3 : 1, P.slow > 0 ? .55 : 1);
+  ts += (tgt - ts) * Math.min(1, dt0 * 10);
+  const dt = dt0 * ts;
+  nm = Math.max(0, nm - dt0);
+  if (P.slow > 0) P.slow -= dt0;
+  if (P.mag > 0) P.mag -= dt0;
   if (P.skipT > 0) P.skipT -= dt;
   if (P.on){
     const pl = P.on, target = pl.r + 26;
@@ -112,6 +226,12 @@ function update(dt){
     P.y = pl.y + Math.sin(P.a) * P.R;
     pl.pulse = Math.max(0, pl.pulse - dt * 2);
   } else {
+    for (const w of wells){
+      if (w.dead) continue;
+      const dx = w.x - P.x, dy = w.y - P.y, d = Math.hypot(dx, dy);
+      if (d < 130){ const a = (1 - d / 130) * 520; P.vx += dx / d * a * dt; P.vy += dy / d * a * dt; }
+      if (d < 12){ w.dead = true; hit("well"); }
+    }
     P.x += P.vx * dt; P.y += P.vy * dt;
     for (const pl of planets){
       if (pl === P.skip && P.skipT > 0) continue;
@@ -120,39 +240,63 @@ function update(dt){
         P.on = pl; P.R = d; P.a = Math.atan2(dy, dx);
         P.dir = (dx * P.vy - dy * P.vx) >= 0 ? 1 : -1;
         pl.pulse = 1; shake = 5;
-        if (!pl.cap){ pl.cap = 1; score++; document.getElementById("sc").textContent = score; }
-        burst(P.x, P.y, pl.hue, 16);
+        if (!pl.cap){ pl.cap = 1; score++; $("sc").textContent = score; }
+        burst(P.x, P.y, pl.hue, 16); chime();
         break;
+      }
+      const m = P.md.get(pl);
+      if (m === undefined || d < m) P.md.set(pl, d);
+      else if (d > m + 3 && !P.nmd.has(pl) && m >= pl.r + 52 && m < pl.r + 80){
+        P.nmd.add(pl); nm = .6; pl.pulse = 1; toast("نزیک بوو!"); tone(900, "sine", .08, .01, .5, 400);
       }
     }
   }
   trail.push({ x: P.x, y: P.y }); if (trail.length > 26) trail.shift();
 
+  const pull = (o, spd) => { if (P.mag > 0){ const d = Math.hypot(P.x - o.x, P.y - o.y); if (d < 110 && d > 1){ o.x += (P.x - o.x) / d * spd * dt; o.y += (P.y - o.y) / d * spd * dt; } } };
   for (const st of stars){
-    if (!st.got && Math.hypot(P.x - st.x, P.y - st.y) < 18){
-      st.got = true; score++; document.getElementById("sc").textContent = score; burst(st.x, st.y, 55, 14);
+    if (st.got) continue; pull(st, 260);
+    if (Math.hypot(P.x - st.x, P.y - st.y) < 18){
+      st.got = true; score++; $("sc").textContent = score; burst(st.x, st.y, 55, 14);
+      tone(1318, "sine", .09, .01, .4);
+    }
+  }
+  for (const it of items){
+    if (it.got) continue; pull(it, 260);
+    if (Math.hypot(P.x - it.x, P.y - it.y) < 20){
+      it.got = true; burst(it.x, it.y, 190, 18);
+      tone(1046, "sine", .1, .01, .35); tone(1568, "sine", .08, .08, .5);
+      if (it.t === "S"){ P.shield = true; toast("🛡 قەڵغان"); }
+      else if (it.t === "M"){ P.mag = 8; toast("🧲 موگناتیس"); }
+      else { P.slow = 6; toast("⏳ کاتی هێواش"); }
     }
   }
   for (const p of parts){ p.x += p.vx*dt; p.y += p.vy*dt; p.vx *= .96; p.vy *= .96; p.life -= dt * 1.4; }
   parts = parts.filter(p => p.life > 0);
 
+  const w = wi();
+  if (w !== curW){ curW = w; toast(WORLDS[w].n); }
+  $("pw").textContent = (P.shield ? "🛡 " : "") + (P.mag > 0 ? "🧲" + Math.ceil(P.mag) + " " : "") + (P.slow > 0 ? "⏳" + Math.ceil(P.slow) : "");
+
   const ty = P.y - LH * 0.65;
   if (ty < camY) camY += (ty - camY) * Math.min(1, dt * 4);
   shake *= .88;
   extend();
-  if (!P.on && (P.y - camY > LH + 30 || P.x < -60 || P.x > LW + 60)) end();
+  if (!P.on && (P.y - camY > LH + 30 || P.x < -60 || P.x > LW + 60)) hit("fall");
 }
 
+/* ---------- drawing ---------- */
 function glow(x, y, r, color, a){
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
   g.addColorStop(0, `hsla(${color},${a})`); g.addColorStop(1, `hsla(${color},0)`);
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
 }
-
 function draw(){
+  const W2 = WORLDS[curW];
+  for (let i = 0; i < 3; i++){ cA[i] += (W2.a[i] - cA[i]) * .02; cB[i] += (W2.b[i] - cB[i]) * .02; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#0B1030"); g.addColorStop(1, "#070B1A");
+  g.addColorStop(0, `rgb(${cA.map(Math.round)})`); g.addColorStop(1, `rgb(${cB.map(Math.round)})`);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
   const sx = shake ? rnd(-shake, shake) : 0, sy = shake ? rnd(-shake, shake) : 0;
@@ -165,35 +309,52 @@ function draw(){
   }
   ctx.globalAlpha = 1;
   ctx.translate(0, -camY);
+  const now = performance.now(), ph0 = ph();
   ctx.globalCompositeOperation = "lighter";
 
   for (const pl of planets){
     glow(pl.x, pl.y, pl.r * 4.2 + pl.pulse * 24, `${pl.hue},90%,60%`, .22 + pl.pulse * .3);
     ctx.strokeStyle = `hsla(${pl.hue},80%,70%,${.14 + pl.pulse * .3})`; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.r + 26, 0, 6.283); ctx.stroke();
+    ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.r + 26 + pl.pulse * 10, 0, 6.283); ctx.stroke();
   }
+  for (const w of wells) if (!w.dead) glow(w.x, w.y, 70, "275,90%,55%", .3);
   ctx.globalCompositeOperation = "source-over";
   for (const pl of planets){
     const gr = ctx.createRadialGradient(pl.x - pl.r*.35, pl.y - pl.r*.35, 1, pl.x, pl.y, pl.r);
     gr.addColorStop(0, `hsl(${pl.hue},85%,78%)`); gr.addColorStop(1, `hsl(${pl.hue},70%,32%)`);
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.r, 0, 6.283); ctx.fill();
   }
+  for (const w of wells){
+    if (w.dead) continue;
+    ctx.fillStyle = "#020306"; ctx.beginPath(); ctx.arc(w.x, w.y, 11, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = "hsla(285,90%,68%,.8)"; ctx.lineWidth = 2; ctx.setLineDash([6, 7]); ctx.lineDashOffset = -now / 40;
+    ctx.beginPath(); ctx.arc(w.x, w.y, 17, 0, 6.283); ctx.stroke();
+    ctx.strokeStyle = "hsla(285,90%,68%,.25)"; ctx.lineWidth = 1; ctx.lineDashOffset = now / 60;
+    ctx.beginPath(); ctx.arc(w.x, w.y, 26, 0, 6.283); ctx.stroke(); ctx.setLineDash([]);
+  }
 
   ctx.globalCompositeOperation = "lighter";
   for (const st of stars){
     if (st.got) continue;
-    const t = performance.now() / 300;
+    const t = now / 300;
     glow(st.x, st.y, 14 + Math.sin(t + st.y) * 2, "50,100%,60%", .55);
     ctx.fillStyle = "#FFE98A"; ctx.beginPath(); ctx.arc(st.x, st.y, 3.2, 0, 6.283); ctx.fill();
   }
+  for (const it of items){
+    if (it.got) continue;
+    glow(it.x, it.y, 18 + Math.sin(now / 250) * 3, it.t === "S" ? "200,95%,60%" : it.t === "M" ? "320,95%,62%" : "30,95%,58%", .6);
+  }
   for (let i = 0; i < trail.length; i++){
     const k = i / trail.length;
-    glow(trail[i].x, trail[i].y, 3 + k * 7, "165,95%,62%", k * .5);
+    glow(trail[i].x, trail[i].y, 3 + k * 7, `${ph0},95%,62%`, k * .5);
   }
   for (const p of parts) glow(p.x, p.y, 5, `${p.hue},95%,65%`, p.life * .8);
-  glow(P.x, P.y, 20, "165,95%,70%", .8);
+  glow(P.x, P.y, 20, `${ph0},95%,70%`, .8);
   ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(P.x, P.y, 4.6, 0, 6.283); ctx.fill();
   ctx.globalCompositeOperation = "source-over";
+  if (P.shield){ ctx.strokeStyle = "hsla(200,95%,70%,.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(P.x, P.y, 13 + Math.sin(now / 150), 0, 6.283); ctx.stroke(); }
+  ctx.font = "15px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const it of items) if (!it.got) ctx.fillText(it.t === "S" ? "🛡" : it.t === "M" ? "🧲" : "⏳", it.x, it.y + 1);
 }
 
 function frame(t){
@@ -202,55 +363,25 @@ function frame(t){
   if (running) update(dt);
   draw();
 }
-function end(){
+function end(msg){
   over = true; running = false;
-  if (score > best){ best = score; document.getElementById("hs").textContent = best; try { localStorage.setItem("orbitBest", best); } catch {} }
-  document.getElementById("t").textContent = "تاریکی قووتی دایت";
-  document.getElementById("t").style.direction = "rtl";
-  document.getElementById("p").textContent = "خاڵەکانت: " + score;
-  document.getElementById("go").textContent = "دووبارە";
-  document.getElementById("ov").style.display = "flex";
+  if (score > best){ best = score; $("hs").textContent = best; try { localStorage.setItem("orbitBest", best); } catch {} }
+  $("t").textContent = msg;
+  $("t").style.direction = "rtl";
+  $("p").textContent = "خاڵەکانت: " + score + (score >= best && score > 0 ? " — باشترین!" : "");
+  $("go").textContent = "دووبارە";
+  drawSkins();
+  $("ov").style.display = "flex";
 }
-document.getElementById("go").onclick = e => {
-  e.stopPropagation();
+$("go").onclick = e => {
+  e.stopPropagation(); unlock();
   reset(); over = false; running = true;
-  document.getElementById("ov").style.display = "none";
+  $("ov").style.display = "none";
 };
-addEventListener("pointerdown", e => { if (running && e.target === cv || running) release(); });
+addEventListener("pointerdown", () => { if (running) release(); });
 addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); if (running) release(); } });
 
 reset(); requestAnimationFrame(t => { last = t; frame(t); });
-</script>
-<script>
-(function(){
-  let ac=null;
-  function unlock(){
-    try{
-      if(!ac){ac=new (window.AudioContext||window.webkitAudioContext)();}
-      if(ac.state==="suspended") ac.resume();
-    }catch(e){}
-  }
-  ["touchend","click","pointerdown"].forEach(e=>addEventListener(e,unlock,{passive:true}));
-  const sc=[0,2,4,7,9];
-  function chime(){
-    if(!ac||ac.state!=="running") return;
-    const n=(typeof score==="number"?score:0);
-    const semis=sc[n%5]+12*Math.floor((n%15)/5);
-    const f=392*Math.pow(2,semis/12);
-    const t=ac.currentTime;
-    [[f,"sine",.16],[f*2,"triangle",.05]].forEach(([fr,ty,v])=>{
-      const o=ac.createOscillator(),g=ac.createGain();
-      o.type=ty;o.frequency.value=fr;
-      g.gain.setValueAtTime(0.0001,t);
-      g.gain.exponentialRampToValueAtTime(v,t+.015);
-      g.gain.exponentialRampToValueAtTime(0.0001,t+.7);
-      o.connect(g);g.connect(ac.destination);
-      o.start(t);o.stop(t+.75);
-    });
-  }
-  const ob=burst;
-  burst=function(x,y,h,n){ if(n===16) chime(); ob(x,y,h,n); };
-})();
 </script>
 <script>
 (function(){
