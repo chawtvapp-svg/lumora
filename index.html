@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070B1A">
 <title>Lumora</title>
-<link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Lumora">
@@ -25,6 +22,25 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #ov p{color:#9AA6C8;line-height:1.9;max-width:300px}
 #ov button{margin-top:10px;background:linear-gradient(135deg,#7B61FF,#31E0A8);color:#07101F;border:0;border-radius:99px;padding:14px 44px;font:inherit;font-weight:800;font-size:18px}
 </style>
+<script>
+(function(){
+  const c=document.createElement("canvas");c.width=c.height=180;const x=c.getContext("2d");
+  const g=x.createLinearGradient(0,0,0,180);g.addColorStop(0,"#0E143A");g.addColorStop(1,"#050816");
+  x.fillStyle=g;x.fillRect(0,0,180,180);
+  function gl(px,py,r,col,a){const q=x.createRadialGradient(px,py,0,px,py,r);q.addColorStop(0,col.replace("A",a));q.addColorStop(1,col.replace("A",0));x.fillStyle=q;x.beginPath();x.arc(px,py,r,0,7);x.fill();}
+  gl(55,45,120,"rgba(123,97,255,A)",.5);gl(135,150,100,"rgba(49,224,168,A)",.25);
+  x.strokeStyle="rgba(160,190,255,.4)";x.lineWidth=1.5;x.beginPath();x.arc(90,90,53,0,7);x.stroke();
+  gl(90,90,60,"rgba(140,110,255,A)",.5);
+  const p=x.createRadialGradient(78,80,2,90,90,24);p.addColorStop(0,"#C8B4FF");p.addColorStop(1,"#4628AA");
+  x.fillStyle=p;x.beginPath();x.arc(90,90,24,0,7);x.fill();
+  const a0=-.95;
+  for(let i=0;i<40;i++){const k=i/40,a=a0-(1-k)*.9;gl(90+53*Math.cos(a),90+53*Math.sin(a),2+k*7,"rgba(49,224,168,A)",k*k*.7);}
+  const bx=90+53*Math.cos(a0),by=90+53*Math.sin(a0);
+  gl(bx,by,26,"rgba(49,224,168,A)",.9);x.fillStyle="#fff";x.beginPath();x.arc(bx,by,4,0,7);x.fill();
+  const u=c.toDataURL("image/png");
+  ["apple-touch-icon","icon"].forEach(r=>{const l=document.createElement("link");l.rel=r;l.href=u;document.head.appendChild(l);});
+})();
+</script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -33,7 +49,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 
 <script>
 const cv = document.getElementById("c"), ctx = cv.getContext("2d");
-const LW = 400;                     // پانی جیهانی یاری
+const LW = 400;
 let W, H, s, LH, dpr;
 function resize(){
   dpr = Math.min(devicePixelRatio || 1, 2);
@@ -142,7 +158,6 @@ function draw(){
   const sx = shake ? rnd(-shake, shake) : 0, sy = shake ? rnd(-shake, shake) : 0;
   ctx.setTransform(dpr * s, 0, 0, dpr * s, sx * dpr, sy * dpr);
 
-  // ئەستێرەی پاشبنەما (پارالاکس)
   ctx.fillStyle = "#fff";
   for (const b of bg){
     const y = ((b.y - camY * b.z * .35) % (LH + 40) + LH + 40) % (LH + 40) - 20;
@@ -204,7 +219,6 @@ document.getElementById("go").onclick = e => {
 addEventListener("pointerdown", e => { if (running && e.target === cv || running) release(); });
 addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); if (running) release(); } });
 
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 reset(); requestAnimationFrame(t => { last = t; frame(t); });
 </script>
 </body>
